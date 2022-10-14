@@ -196,11 +196,11 @@ BEGIN
 		o.ModifiedAt = CASE WHEN @updateLastModified = 1 THEN GETDATE() ELSE o.ModifiedAt END,
 		o.ModifiedBy = CASE WHEN @updateLastModified = 1 THEN @userID ELSE o.ModifiedBy END
 	OUTPUT
-		CASE WHEN DELETED.OrganizationName != @OrganizationName THEN N'{ "ES":3, "FID":1, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.OrganizationName, '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName, '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Name]
-		,CASE WHEN DELETED.[Description] != @Description THEN N'{ "ES":3, "FID":60, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Description], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Description], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Description]
-		,CASE WHEN DELETED.[Mission] != @Mission THEN N'{ "ES":3, "FID":1, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Mission], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Mission], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Mission]
-		,CASE WHEN DELETED.[Keywords] != @Keywords THEN N'{ "ES":3, "FID":1, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Keywords], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Keywords], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Keywords]
-		,CASE WHEN DELETED.[ServicesProvided] != @ServicesProvided THEN N'{ "ES":3, "FID":1, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[ServicesProvided], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[ServicesProvided], '"', '\"'), '''', '\''') + '"}' ELSE '' END AS [ServicesProvided]
+		CASE WHEN DELETED.OrganizationName != @OrganizationName THEN N'{ "ES":3, "FID":57, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.OrganizationName, '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName, '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Name]
+		,CASE WHEN ISNULL(DELETED.[Description], '') != ISNULL(@Description, '') THEN N'{ "ES":3, "FID":60, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Description], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Description], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Description]
+		,CASE WHEN ISNULL(DELETED.[Mission], '') != ISNULL(@Mission, '') THEN N'{ "ES":3, "FID":61, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Mission], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Mission], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Mission]
+		,CASE WHEN ISNULL(DELETED.[Keywords], '') != ISNULL(@Keywords, '') THEN N'{ "ES":3, "FID":59, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Keywords], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Keywords], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Keywords]
+		,CASE WHEN ISNULL(DELETED.[ServicesProvided], '') != ISNULL(@ServicesProvided, '') THEN N'{ "ES":3, "FID":62, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[ServicesProvided], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[ServicesProvided], '"', '\"'), '''', '\''') + '"}' ELSE '' END AS [ServicesProvided]
 			INTO @temp
 	FROM Organizations o
 	WHERE o.ID = @ID
