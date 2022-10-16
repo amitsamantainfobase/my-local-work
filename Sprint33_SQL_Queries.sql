@@ -135,9 +135,9 @@ BEGIN
 	SET 
 		o.[Status] = @Status,
 		o.PublishedAt = CASE WHEN @IsPublish = 1 THEN @publishedOn ELSE o.PublishedAt END
-	OUTPUT
-	   CASE WHEN DELETED.[Status] != @Status THEN N'{ "ES":3, "FID":58, "P":"' + @page + '", "OV":"' + CAST(DELETED.[Status] AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.[Status] AS NVARCHAR(10))+ '" }, ' ELSE '' END AS [Status]
-	   , CASE WHEN @IsPublish=1 AND ISNULL(DELETED.PublishedAt, '') != @publishedOn THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }' ELSE '' END AS PublishedAt
+	OUTPUT 
+		CASE WHEN DELETED.[Status] != @Status THEN N'{ "ES":3, "FID":58, "P":"' + @page + '", "OV":"' + CAST(DELETED.[Status] AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.[Status] AS NVARCHAR(10))+ '" }, ' ELSE '' END AS [Status]
+	   , CASE WHEN ISNULL(DELETED.PublishedAt, '') != @publishedOn THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }' ELSE '' END AS PublishedAt
 	INTO @temp
 	FROM Organizations o
 	WHERE o.ID = @OrganizationID
@@ -146,6 +146,7 @@ BEGIN
 	SET @json = (SELECT CASE WHEN RIGHT(@json, 2)=', ' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
 END
+GO
 
 
 /****** Object:  StoredProcedure [dbo].[UpdateOrganizationMetadata]    Script Date: 14-10-2022 14:17:23 ******/
@@ -196,11 +197,11 @@ BEGIN
 		o.ModifiedAt = CASE WHEN @updateLastModified = 1 THEN GETDATE() ELSE o.ModifiedAt END,
 		o.ModifiedBy = CASE WHEN @updateLastModified = 1 THEN @userID ELSE o.ModifiedBy END
 	OUTPUT
-		CASE WHEN DELETED.OrganizationName != @OrganizationName THEN N'{ "ES":3, "FID":57, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.OrganizationName, '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName, '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Name]
-		,CASE WHEN ISNULL(DELETED.[Description], '') != ISNULL(@Description, '') THEN N'{ "ES":3, "FID":60, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Description], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Description], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Description]
-		,CASE WHEN ISNULL(DELETED.[Mission], '') != ISNULL(@Mission, '') THEN N'{ "ES":3, "FID":61, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Mission], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Mission], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Mission]
-		,CASE WHEN ISNULL(DELETED.[Keywords], '') != ISNULL(@Keywords, '') THEN N'{ "ES":3, "FID":59, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[Keywords], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[Keywords], '"', '\"'), '''', '\''') + '" }, ' ELSE '' END AS [Keywords]
-		,CASE WHEN ISNULL(DELETED.[ServicesProvided], '') != ISNULL(@ServicesProvided, '') THEN N'{ "ES":3, "FID":62, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[ServicesProvided], '"', '\"'), '''', '\''')  + '", "NV":"' + REPLACE(REPLACE(INSERTED.[ServicesProvided], '"', '\"'), '''', '\''') + '"}' ELSE '' END AS [ServicesProvided]
+		CASE WHEN DELETED.OrganizationName != @OrganizationName THEN N'{ "ES":3, "FID":57, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.OrganizationName, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Name]
+		, CASE WHEN ISNULL(DELETED.[Description], '') != ISNULL(@Description, '') THEN N'{ "ES":3, "FID":60, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[Description], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[Description], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Description]
+		, CASE WHEN ISNULL(DELETED.[Mission], '') != ISNULL(@Mission, '') THEN N'{ "ES":3, "FID":61, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[Mission], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[Mission], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Mission]
+		, CASE WHEN ISNULL(DELETED.[Keywords], '') != ISNULL(@Keywords, '') THEN N'{ "ES":3, "FID":59, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[Keywords], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[Keywords], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Keywords]
+		, CASE WHEN ISNULL(DELETED.[ServicesProvided], '') != ISNULL(@ServicesProvided, '') THEN N'{ "ES":3, "FID":62, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[ServicesProvided], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[ServicesProvided], '"', '\"'), '''', '\'''), '') + '"}' ELSE '' END AS [ServicesProvided]
 			INTO @temp
 	FROM Organizations o
 	WHERE o.ID = @ID
@@ -209,3 +210,122 @@ BEGIN
 	SET @json  = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
 END
+GO
+
+
+/****** Object:  StoredProcedure [dbo].[UpdateOrganizationAddress]    Script Date: 16-10-2022 16:42:09 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		Ahuva Freeman
+-- Create date: 6/3/22
+-- Description:	Update Organization Address data
+-- Modified On: 10/11/22 by Amit Samanta
+-- =============================================
+ALTER PROCEDURE [dbo].[UpdateOrganizationAddress]
+	-- Add the parameters for the stored procedure here
+	@address [Address] READONLY,
+	@userID int,
+    @updateLastModified bit = 1
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    -- Insert statements for procedure here
+    DECLARE @json NVARCHAR(MAX) = N'[',
+	    @page NVARCHAR(500) = NULL
+
+    DECLARE @temp TABLE (
+	    Address1 NVARCHAR(500),
+        Address2 NVARCHAR(500),
+        City NVARCHAR(500),
+        StateID NVARCHAR(500),
+        CountryID NVARCHAR(500),
+        Zip NVARCHAR(500),
+        Phone NVARCHAR(MAX),
+        TollFree NVARCHAR(MAX),
+        Email NVARCHAR(MAX),
+        [URL] NVARCHAR(MAX),
+        SocialMedia NVARCHAR(MAX)
+    );
+
+	UPDATE o
+	SET 
+		o.Address1 = a.Address1,
+		o.Address2 = a.Address2,
+		o.City = a.City,
+		o.StateID = a.StateID,
+		o.CountryID = a.CountryID,
+		o.Zip = a.Zip,
+		o.Phone = a.Phone,
+		o.TollFree = a.TollFree,
+		o.Email = a.Email,
+		o.[URL] = a.[URL],
+		o.SocialMedia = a.SocialMedia,
+		o.ModifiedAt = CASE WHEN @updateLastModified = 1 THEN GETDATE() ELSE o.ModifiedAt END,
+		o.ModifiedBy = CASE WHEN @updateLastModified = 1 THEN @userID ELSE o.ModifiedBy END
+    OUTPUT
+        CASE WHEN ISNULL(DELETED.Address1, '') != ISNULL(a.Address1, '') THEN N'{ "ES":3, "FID":65, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.Address1, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.Address1, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS Address1
+		, CASE WHEN ISNULL(DELETED.Address2, '') != ISNULL(a.Address2, '') THEN N'{ "ES":3, "FID":66, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.Address2, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.Address2, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS Address2
+		, CASE WHEN ISNULL(DELETED.City, '') != ISNULL(a.City, '') THEN N'{ "ES":3, "FID":67, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.City, '"', '\"'), '''', '\'''), '') + COALESCE('", "NV":"' + REPLACE(REPLACE(INSERTED.City, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS City
+		, CASE WHEN ISNULL(DELETED.StateID, -1) != ISNULL(a.StateID, -1) THEN N'{ "ES":3, "FID":68, "P":"' + @page + ISNULL('", "OV":"' + CAST(DELETED.StateID AS NVARCHAR(10)), '') + ISNULL('", "NV":"' + CAST(INSERTED.StateID AS NVARCHAR(10)), '') + '" }, ' ELSE '' END AS StateID
+		, CASE WHEN ISNULL(DELETED.CountryID, -1) != ISNULL(a.CountryID, -1) THEN N'{ "ES":3, "FID":69, "P":"' + @page + ISNULL('", "OV":"' + CAST(DELETED.CountryID AS NVARCHAR(10)), '') + ISNULL('", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(10)), '') + '" }, ' ELSE '' END AS CountryID
+		, CASE WHEN ISNULL(DELETED.Zip, '') != ISNULL(a.Zip, '') THEN N'{ "ES":3, "FID":70, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.Zip, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.Zip, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS Zip
+		, CASE WHEN ISNULL(DELETED.Phone, '') != ISNULL(a.Phone, '') THEN N'{ "ES":3, "FID":71, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.Phone, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.Phone, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS Phone
+		, CASE WHEN ISNULL(DELETED.TollFree, '') != ISNULL(a.TollFree, '') THEN N'{ "ES":3, "FID":72, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.TollFree, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.TollFree, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS TollFree
+		, CASE WHEN ISNULL(DELETED.Email, '') != ISNULL(a.Email, '') THEN N'{ "ES":3, "FID":73, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.Email, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.Email, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS Email
+		, CASE WHEN ISNULL(DELETED.[URL], '') != ISNULL(a.[URL], '') THEN N'{ "ES":3, "FID":74, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[URL], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[URL], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [URL]
+		, CASE WHEN ISNULL(DELETED.SocialMedia, '') != ISNULL(a.SocialMedia, '') THEN N'{ "ES":3, "FID":75, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.SocialMedia, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.SocialMedia, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS SocialMedia
+            INTO @temp
+	FROM Organizations o
+	INNER JOIN @address a ON o.ID = a.ID
+
+	SET @json = @json + (SELECT t.[Address1] + t.[Address1] + t.[City] + t.[StateID] + t.[CountryID]+ t.[Zip]+ t.[Phone]+ t.[TollFree]+ t.[Email]+ t.[URL]+ t.[SocialMedia] FROM @temp t)
+	SET @json  = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
+	SET @json = @json + ']'
+END
+GO
+
+
+/****** Object:  StoredProcedure [dbo].[DeleteOrganization]    Script Date: 16-10-2022 18:50:57 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		Ahuva Freeman
+-- Create date: 8/2/2022
+-- Description:	Delete Organization
+-- =============================================
+ALTER PROCEDURE [dbo].[DeleteOrganization]
+	-- Add the parameters for the stored procedure here
+	@ID int,
+	@UserID int
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    -- Insert statements for procedure here
+	DECLARE @json NVARCHAR(MAX) = null,
+		@page NVARCHAR(500) = NULL
+
+	DECLARE @temp TABLE (OldVal NVARCHAR(MAX));
+
+	UPDATE o
+	SET o.IsDeleted = 1,
+		o.DeletedAt = GETDATE(),
+		o.DeletedByID = @userID
+	OUTPUT N'[{ "ES":2, "FID":56, "P":"' + @page + '", "OV":"' + CAST(DELETED.ID AS NVARCHAR(250)) + '" }]' AS OldVal
+    	INTO @temp
+	FROM Organizations o
+	WHERE o.ID = @ID
+
+	SET @json = (SELECT t.OldVal FROM @temp t)
+END
+GO
