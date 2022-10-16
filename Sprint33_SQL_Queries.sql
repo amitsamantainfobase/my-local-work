@@ -197,11 +197,105 @@ BEGIN
 		o.ModifiedAt = CASE WHEN @updateLastModified = 1 THEN GETDATE() ELSE o.ModifiedAt END,
 		o.ModifiedBy = CASE WHEN @updateLastModified = 1 THEN @userID ELSE o.ModifiedBy END
 	OUTPUT
-		CASE WHEN DELETED.OrganizationName != @OrganizationName THEN N'{ "ES":3, "FID":57, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.OrganizationName, '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName, '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Name]
-		, CASE WHEN ISNULL(DELETED.[Description], '') != ISNULL(@Description, '') THEN N'{ "ES":3, "FID":60, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[Description], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[Description], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Description]
-		, CASE WHEN ISNULL(DELETED.[Mission], '') != ISNULL(@Mission, '') THEN N'{ "ES":3, "FID":61, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[Mission], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[Mission], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Mission]
-		, CASE WHEN ISNULL(DELETED.[Keywords], '') != ISNULL(@Keywords, '') THEN N'{ "ES":3, "FID":59, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[Keywords], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[Keywords], '"', '\"'), '''', '\'''), '') + '" }, ' ELSE '' END AS [Keywords]
-		, CASE WHEN ISNULL(DELETED.[ServicesProvided], '') != ISNULL(@ServicesProvided, '') THEN N'{ "ES":3, "FID":62, "P":"' + @page + ISNULL('", "OV":"' + REPLACE(REPLACE(DELETED.[ServicesProvided], '"', '\"'), '''', '\'''), '') + ISNULL('", "NV":"' + REPLACE(REPLACE(INSERTED.[ServicesProvided], '"', '\"'), '''', '\'''), '') + '"}' ELSE '' END AS [ServicesProvided]
+		CASE
+            WHEN DELETED.Address1 IS NULL AND INSERTED.Address1 IS NOT NULL
+                THEN N'{ "ES":1, "FID":65, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.Address1, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.Address1 IS NOT NULL AND INSERTED.Address1 IS NULL
+                THEN N'{ "ES":2, "FID":65, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Address1, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.Address1, '') != ISNULL(INSERTED.Address1, '')
+                THEN N'{ "ES":3, "FID":65, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Address1, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.Address1, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS Address1
+		, CASE
+            WHEN DELETED.Address2 IS NULL AND INSERTED.Address2 IS NOT NULL
+                THEN N'{ "ES":1, "FID":66, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.Address2, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.Address2 IS NOT NULL AND INSERTED.Address2 IS NULL
+                THEN N'{ "ES":2, "FID":66, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Address2, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.Address2, '') != ISNULL(INSERTED.Address2, '')
+                THEN N'{ "ES":3, "FID":66, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Address2, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.Address2, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS Address2
+		, CASE
+            WHEN DELETED.City IS NULL AND INSERTED.City IS NOT NULL
+                THEN N'{ "ES":1, "FID":67, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.City, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.City IS NOT NULL AND INSERTED.City IS NULL
+                THEN N'{ "ES":2, "FID":67, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.City, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.City, '') != ISNULL(INSERTED.City, '')
+                THEN N'{ "ES":3, "FID":67, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.City, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.City, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS City
+		, CASE
+            WHEN DELETED.StateID IS NULL AND INSERTED.StateID IS NOT NULL
+                THEN N'{ "ES":1, "FID":68, "P":"' + @page + '", "NV":"' + CAST(INSERTED.StateID AS NVARCHAR(10)) + '" }, '
+            WHEN DELETED.StateID IS NOT NULL AND INSERTED.StateID IS NULL
+                THEN N'{ "ES":2, "FID":68, "P":"' + @page + '", "OV":"' + CAST(DELETED.StateID AS NVARCHAR(10)) + '" }, '
+            WHEN ISNULL(DELETED.StateID, '') != ISNULL(INSERTED.StateID, '')
+                THEN N'{ "ES":3, "FID":68, "P":"' + @page + '", "OV":"' + CAST(DELETED.StateID AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.StateID AS NVARCHAR(10)) + '" }, '
+            ELSE ''
+        END AS StateID
+		, CASE 
+            WHEN DELETED.CountryID IS NULL AND INSERTED.CountryID IS NOT NULL
+                THEN N'{ "ES":3, "FID":69, "P":"' + @page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(10)) + '" }, '
+            WHEN DELETED.CountryID IS NOT NULL AND INSERTED.CountryID IS NULL
+                THEN N'{ "ES":3, "FID":69, "P":"' + @page + '", "OV":"' + CAST(DELETED.CountryID AS NVARCHAR(10)) + '" }, '
+            WHEN ISNULL(DELETED.CountryID, '') != ISNULL(INSERTED.CountryID, '')
+                THEN N'{ "ES":3, "FID":69, "P":"' + @page + '", "OV":"' + CAST(DELETED.CountryID AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(10)) + '" }, '
+            ELSE ''
+        END AS CountryID
+		, CASE 
+            WHEN DELETED.Zip IS NULL AND INSERTED.Zip IS NOT NULL
+                THEN N'{ "ES":1, "FID":70, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.Zip, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.Zip IS NOT NULL AND INSERTED.Zip IS NULL
+                THEN N'{ "ES":2, "FID":70, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Zip, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.Zip, '') != ISNULL(INSERTED.Zip, '')
+                THEN N'{ "ES":3, "FID":70, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Zip, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.Zip, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS Zip
+		, CASE 
+            WHEN DELETED.Phone IS NULL AND INSERTED.Phone IS NOT NULL
+                THEN N'{ "ES":1, "FID":71, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.Phone, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.Phone IS NOT NULL AND INSERTED.Phone IS NULL
+                THEN N'{ "ES":2, "FID":71, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Phone, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.Phone, '') != ISNULL(INSERTED.Phone, '')
+                THEN N'{ "ES":3, "FID":71, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Phone, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.Phone, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS Phone
+		, CASE
+            WHEN DELETED.TollFree IS NULL AND INSERTED.TollFree IS NOT NULL
+                THEN N'{ "ES":1, "FID":72, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.TollFree, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.TollFree IS NOT NULL AND INSERTED.TollFree IS NULL
+                THEN N'{ "ES":2, "FID":72, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.TollFree, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.TollFree, '') != ISNULL(INSERTED.TollFree, '')
+                THEN N'{ "ES":3, "FID":72, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.TollFree, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.TollFree, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS TollFree
+		, CASE 
+            WHEN DELETED.Email IS NULL AND INSERTED.Email IS NOT NULL 
+                THEN N'{ "ES":1, "FID":73, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.Email, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.Email IS NOT NULL AND INSERTED.Email IS NULL
+                THEN N'{ "ES":2, "FID":73, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Email, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.Email, '') != ISNULL(INSERTED.Email, '')
+                THEN N'{ "ES":3, "FID":73, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.Email, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.Email, '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS Email
+		, CASE 
+            WHEN DELETED.[URL] IS NULL AND INSERTED.[URL] IS NOT NULL
+                THEN N'{ "ES":1, "FID":74, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.[URL], '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.[URL] IS NOT NULL AND INSERTED.[URL] IS NULL
+                THEN N'{ "ES":2, "FID":74, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[URL], '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.[URL], '') != ISNULL(INSERTED.[URL], '')
+                THEN N'{ "ES":3, "FID":74, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.[URL], '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.[URL], '"', '\"'), '''', '\''') + '" }, '
+            ELSE ''
+        END AS [URL]
+		, CASE
+            WHEN DELETED.[SocialMedia] IS NULL AND INSERTED.[SocialMedia] IS NOT NULL
+                THEN N'{ "ES":1, "FID":75, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.SocialMedia, '"', '\"'), '''', '\''') + '" }, '
+            WHEN DELETED.[SocialMedia] IS NOT NULL AND INSERTED.[SocialMedia] IS NULL
+                THEN N'{ "ES":2, "FID":75, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.SocialMedia, '"', '\"'), '''', '\''') + '" }, '
+            WHEN ISNULL(DELETED.[SocialMedia], '') != ISNULL(INSERTED.[SocialMedia], '')
+                THEN N'{ "ES":3, "FID":75, "P":"' + @page + '", "OV":"' + REPLACE(REPLACE(DELETED.SocialMedia, '"', '\"'), '''', '\''') + '", "NV":"' + REPLACE(REPLACE(INSERTED.SocialMedia, '"', '\"'), '''', '\''') + '" }, '
+            ELSE '' 
+        END AS [SocialMedia]
 			INTO @temp
 	FROM Organizations o
 	WHERE o.ID = @ID
