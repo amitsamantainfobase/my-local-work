@@ -415,6 +415,125 @@ END
 GO
 
 
+/****** Object:  StoredProcedure [dbo].[UpdateOrganizationRestrictions]    Script Date: 17-10-2022 15:33:33 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		Ahuva Freeman
+-- Create date: 6/16/22
+-- Description:	update locations by location type for an organization
+-- =============================================
+ALTER PROCEDURE [dbo].[UpdateOrganizationRestrictions]
+	-- Add the parameters for the stored procedure here
+	@OrganizationID int,
+	@LocationTypeID int,
+	@locations IDType READONLY
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    DECLARE @PreviousLocationsCount INT
+        , @CurrentLocationsCount INT
+        , @EntryState INT
+        , @FieldID INT
+        , @RemovedIDStrings NVARCHAR(MAX)
+        , @InsertedIDStrings NVARCHAR(MAX)
+        , @JSONString NVARCHAR(MAX)
+        , @Page nvarchar(1000) = ''
+
+    DECLARE @deletedID TABLE (ID INT)
+    DECLARE @insertedID TABLE (ID INT)
+
+    -- RestrictedLocations count before operation
+    SET @PreviousLocationsCount = 
+    (
+        SELECT COUNT(ID) 
+        FROM RestrictedLocations 
+        WHERE OrganizationID=@OrganizationID
+            AND RestrictedLocationType=@LocationTypeID
+    )
+
+    DELETE r
+        OUTPUT DELETED.RestrictedLocationID INTO @deletedID 
+    FROM RestrictedLocations r (NOLOCK)
+        INNER JOIN @locations l ON l.ID = r.RestrictedLocationID
+    WHERE r.OrganizationID = @OrganizationID
+        AND r.RestrictedLocationType = @LocationTypeID
+
+    INSERT INTO RestrictedLocations(OrganizationID, RestrictedLocationID, RestrictedLocationType)
+        OUTPUT INSERTED.RestrictedLocationID INTO @insertedID
+    SELECT @OrganizationID, l.ID, @LocationTypeID
+    FROM @locations l
+    WHERE l.ID NOT IN (SELECT ID FROM @deletedID)
+
+    -- RestrictedLocations count after operation
+    SET @CurrentLocationsCount =
+    (
+        SELECT COUNT(ID) 
+        FROM RestrictedLocations 
+        WHERE OrganizationID=@OrganizationID
+            AND RestrictedLocationType=@LocationTypeID
+    )
+
+    SET @EntryState = 
+    CASE 
+        --Restricted Locations are added
+        WHEN @PreviousLocationsCount IS NULL AND @CurrentLocationsCount IS NOT NULL 
+            THEN 1
+        --Restricted Locations are removed
+        WHEN @PreviousLocationsCount IS NOT NULL AND @CurrentLocationsCount IS NULL 
+            THEN 2
+        --Restricted Locations are modified
+        ELSE 3
+    END
+
+    -- column id from 'Log_Fields'
+    SET @FieldID =
+    CASE
+        WHEN @LocationTypeID=1 THEN 63
+        WHEN @LocationTypeID=2 THEN 64
+    END
+
+    -- convert the removed ids to comma separated ids
+    SET @RemovedIDStrings = 
+    (
+        SELECT STUFF(
+            (
+                SELECT DISTINCT ',' + CAST(ID AS NVARCHAR(MAX))
+                FROM @deletedID
+                FOR XML PATH('')
+            ),
+            1,
+            1,
+            ''
+        )
+    )
+
+    -- convert the inserted ids to comma separated ids
+    SET @InsertedIDStrings = 
+    (
+        SELECT STUFF(
+            (
+                SELECT DISTINCT ',' + CAST(ID AS NVARCHAR(MAX))
+                FROM @insertedID
+                FOR XML PATH('')
+            ),
+            1,
+            1,
+            ''
+        )
+    )
+
+    SET @JSONString = N'[{ "ES":' + CAST(@EntryState AS NVARCHAR(250)) + ', "FID":' + CAST(@FieldID AS NVARCHAR(250))
+    SET @JSONString = @JSONString + ', "P":"' + @Page + ISNULL('", "OV":"' + @RemovedIDStrings, '')
+    SET @JSONString = @JSONString + ISNULL('", "NV":"' + @InsertedIDStrings, '') + '" }]'
+	
+END
+
 /****** Object:  StoredProcedure [dbo].[DeleteOrganization]    Script Date: 16-10-2022 18:50:57 ******/
 SET ANSI_NULLS ON
 GO
