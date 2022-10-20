@@ -6,6 +6,14 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
+SET IDENTITY_INSERT [dbo].[M_EntityTypes] ON
+
+INSERT [dbo].[M_EntityTypes] ([ID], [Name], [ParentID])
+VALUES (13, N'Organization', NULL), (14, N'Person', NULL)
+
+SET IDENTITY_INSERT [dbo].[M_EntityTypes] OFF
+GO
+
 SET IDENTITY_INSERT [dbo].[Log_TableNames] ON
 
 INSERT [dbo].[Log_TableNames] ([ID], [TableName], [DatabaseConnectionID])
