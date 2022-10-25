@@ -57,7 +57,7 @@ SET IDENTITY_INSERT [dbo].[Log_Fields] OFF
 GO
 
 
-/****** Object:  StoredProcedure [dbo].[CreateOrganization]    Script Date: 13-10-2022 21:03:55 ******/
+/****** Object:  StoredProcedure [dbo].[CreateOrganization]    Script Date: 24-10-2022 22:33:27 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -69,11 +69,11 @@ GO
 -- =============================================
 ALTER PROCEDURE [dbo].[CreateOrganization]
 	-- Add the parameters for the stored procedure here
-	@Name NVARCHAR(1000),
-	@StateID INT = NULL,
-	@CountryID INT = NULL,
-	@userID INT,
-	@page NVARCHAR(500)
+	@Name nvarchar(1000),
+	@StateID int = NULL,
+	@CountryID int = NULL,
+	@userID int,
+    @Page NVARCHAR(500)
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -81,6 +81,7 @@ BEGIN
 	SET NOCOUNT ON;
 
     -- Insert statements for procedure here
+    DECLARE @AuditLog AuditLog
 	DECLARE @json NVARCHAR(MAX) = N'[';
 	DECLARE @temp TABLE(
 		ID INT,
@@ -92,17 +93,24 @@ BEGIN
 
 	INSERT INTO Organizations(OrganizationName, StateID, CountryID, CreatedAt, CreatedBy, [Status])
 		OUTPUT INSERTED.ID AS ID
-				, N'{ "ES":1, "FID":56, "P":"' + @page + '", "NV":"' + CAST(INSERTED.ID AS NVARCHAR(250)) +'" }, ' AS IDString
-				, N'{ "ES":1, "FID":57, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName , '"','\"'),'''','\''')  + '" }, ' AS Organization
-				, N'{ "ES":1, "FID":68, "P":"' + @page + '", "NV":"' + CAST(INSERTED.StateID AS NVARCHAR(250)) + '" }, '  AS [State]
-				, N'{ "ES":1, "FID":69, "P":"' + @page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(250)) + '" }'  AS Country
+				, N'{ "ES":1, "FID":56, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.ID AS NVARCHAR(250)) +'" }, ' AS IDString
+				, N'{ "ES":1, "FID":57, "P":"' + @Page + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName , '"','\"'),'''','\''')  + '" }, ' AS Organization
+				, N'{ "ES":1, "FID":68, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.StateID AS NVARCHAR(250)) + '" }, '  AS [State]
+				, N'{ "ES":1, "FID":69, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(250)) + '" }'  AS Country
 			INTO @temp
 	VALUES (@Name, @StateID, @CountryID, GETDATE(), @userID, 1)
 
-    SET @json = @json  + (SELECT t.IDString + t.Organization + t.[State] + t.Country FROM @temp t)
+    SET @json = @json + (SELECT t.[State] + t.Country + t.Organization + t.IDString FROM @temp t)
     SET @json = @json + ']'
-	
-	SELECT TOP 1 ID FROM @temp
+
+    DECLARE @OrganizationID INT = (SELECT TOP 1 ID FROM @temp)
+
+    INSERT INTO @AuditLog(EntityID, EntityTypeID, ProductID, UserID, [Page], [JSON])
+    VALUES(@OrganizationID, 13, -1, @userID, @Page, @json)
+
+    EXECUTE InsertLog @audit=@AuditLog, @json=@json
+
+    SELECT @OrganizationID
 END
 GO
 
@@ -122,7 +130,8 @@ ALTER PROCEDURE [dbo].[UpdateOrganizationStatus]
 	-- Add the parameters for the stored procedure here
 	@OrganizationID INT,
 	@Status INT,
-	@IsPublish BIT = 0
+	@IsPublish BIT = 0,
+    @audit AuditLog READONLY
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -132,7 +141,7 @@ BEGIN
     -- Insert statements for procedure here
 	DECLARE @publishedOn DATETIME2(0) = GETDATE(),
 		@json NVARCHAR(MAX) = N'[',
-		@page NVARCHAR(500) = NULL
+		@page NVARCHAR(500) = (SELECT a.Page FROM @audit a)
 
 	DECLARE @temp TABLE (
 		[Status] NVARCHAR(250),
@@ -145,14 +154,19 @@ BEGIN
 		o.PublishedAt = CASE WHEN @IsPublish = 1 THEN @publishedOn ELSE o.PublishedAt END
 	OUTPUT 
 		CASE WHEN DELETED.[Status] != @Status THEN N'{ "ES":3, "FID":58, "P":"' + @page + '", "OV":"' + CAST(DELETED.[Status] AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.[Status] AS NVARCHAR(10))+ '" }, ' ELSE '' END AS [Status]
-	   , CASE WHEN ISNULL(DELETED.PublishedAt, '') != @publishedOn THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }' ELSE '' END AS PublishedAt
-	INTO @temp
+	   , CASE 
+            WHEN DELETED.PublishedAt IS NULL THEN N'{ "ES":1, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }'
+            WHEN DELETED.PublishedAt != @publishedOn THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }'
+        END AS PublishedAt
+	        INTO @temp
 	FROM Organizations o
 	WHERE o.ID = @OrganizationID
 
-	SET @json = @json + (SELECT t.[Status] + t.PublishedAt FROM @temp t)
+	SET @json = @json + (SELECT t.PublishedAt + t.[Status] FROM @temp t)
 	SET @json = (SELECT CASE WHEN RIGHT(@json, 2)=', ' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
+
+    EXECUTE InsertLog @audit=@audit, @json=@json
 END
 GO
 
@@ -176,7 +190,8 @@ ALTER PROCEDURE [dbo].[UpdateOrganizationMetadata]
 	@Keywords nvarchar(max),
 	@ServicesProvided nvarchar(max),
 	@userID int,
-    @updateLastModified bit = 1
+    @updateLastModified bit = 1,
+    @audit AuditLog READONLY
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -185,7 +200,7 @@ BEGIN
 
     -- Insert statements for procedure here
 	DECLARE @json NVARCHAR(MAX) = N'[',
-		@page NVARCHAR(500) = NULL
+		@page NVARCHAR(500) = (SELECT a.Page FROM @audit a)
 
 	DECLARE @temp TABLE (
 		[Name] NVARCHAR(MAX),
@@ -253,6 +268,8 @@ BEGIN
 	SET @json = @json + (SELECT t.[Name] + t.[Description] + t.[Mission] + t.[Keywords] + t.[ServicesProvided] FROM @temp t)
 	SET @json  = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
+
+    EXECUTE InsertLog @audit=@audit, @json=@json
 END
 GO
 
@@ -272,7 +289,8 @@ ALTER PROCEDURE [dbo].[UpdateOrganizationAddress]
 	-- Add the parameters for the stored procedure here
 	@address [Address] READONLY,
 	@userID int,
-    @updateLastModified bit = 1
+    @updateLastModified bit = 1,
+    @audit AuditLog READONLY
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -281,7 +299,7 @@ BEGIN
 
     -- Insert statements for procedure here
     DECLARE @json NVARCHAR(MAX) = N'[',
-	    @page NVARCHAR(500) = NULL
+	    @page NVARCHAR(500) = (SELECT a.Page FROM @audit a)
 
     DECLARE @temp TABLE (
 	    Address1 NVARCHAR(500),
@@ -419,6 +437,8 @@ BEGIN
 	SET @json = @json + (SELECT t.[Address1] + t.[Address1] + t.[City] + t.[StateID] + t.[CountryID]+ t.[Zip]+ t.[Phone]+ t.[TollFree]+ t.[Email]+ t.[URL]+ t.[SocialMedia] FROM @temp t)
 	SET @json  = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
+
+    EXECUTE InsertLog @audit=@audit, @json=@json
 END
 GO
 
@@ -437,7 +457,8 @@ ALTER PROCEDURE [dbo].[UpdateOrganizationRestrictions]
 	-- Add the parameters for the stored procedure here
 	@OrganizationID int,
 	@LocationTypeID int,
-	@locations IDType READONLY
+	@locations IDType READONLY,
+    @audit AuditLog READONLY
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -451,7 +472,7 @@ BEGIN
         , @RemovedIDStrings NVARCHAR(MAX)
         , @InsertedIDStrings NVARCHAR(MAX)
         , @JSONString NVARCHAR(MAX)
-        , @Page nvarchar(1000) = ''
+        , @Page nvarchar(1000) = (SELECT a.Page FROM @audit a)
 
     DECLARE @deletedID TABLE (ID INT)
     DECLARE @insertedID TABLE (ID INT)
@@ -539,8 +560,10 @@ BEGIN
     SET @JSONString = N'[{ "ES":' + CAST(@EntryState AS NVARCHAR(250)) + ', "FID":' + CAST(@FieldID AS NVARCHAR(250))
     SET @JSONString = @JSONString + ', "P":"' + @Page + ISNULL('", "OV":"' + @RemovedIDStrings, '')
     SET @JSONString = @JSONString + ISNULL('", "NV":"' + @InsertedIDStrings, '') + '" }]'
-	
+
+    EXECUTE InsertLog @audit=@audit, @json=@json
 END
+GO
 
 /****** Object:  StoredProcedure [dbo].[DeleteOrganization]    Script Date: 16-10-2022 18:50:57 ******/
 SET ANSI_NULLS ON
@@ -555,7 +578,8 @@ GO
 ALTER PROCEDURE [dbo].[DeleteOrganization]
 	-- Add the parameters for the stored procedure here
 	@ID int,
-	@UserID int
+	@UserID int,
+    @Page NVARCHAR(500)
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -563,8 +587,8 @@ BEGIN
 	SET NOCOUNT ON;
 
     -- Insert statements for procedure here
-	DECLARE @json NVARCHAR(MAX) = null,
-		@page NVARCHAR(500) = NULL
+    DECLARE @AuditLog AuditLog
+	DECLARE @json NVARCHAR(MAX) = NULL
 
 	DECLARE @temp TABLE (OldVal NVARCHAR(MAX));
 
@@ -578,5 +602,10 @@ BEGIN
 	WHERE o.ID = @ID
 
 	SET @json = (SELECT t.OldVal FROM @temp t)
+
+    INSERT INTO @AuditLog(EntityID, EntityTypeID, ProductID, UserID, [Page], [JSON])
+    VALUES(@ID, 13, -1, @UserID, @Page, @json)
+
+    EXECUTE InsertLog @audit=@AuditLog, @json=@json
 END
 GO
