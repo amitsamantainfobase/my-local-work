@@ -6,6 +6,13 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
+ALTER TABLE
+  [dbo].[Log_ProductHistory]
+ALTER COLUMN
+  [ProductID]
+    INT NULL;
+GO
+
 SET IDENTITY_INSERT [dbo].[M_EntityTypes] ON
 
 INSERT [dbo].[M_EntityTypes] ([ID], [Name], [ParentID])
@@ -28,7 +35,7 @@ INSERT [dbo].[Log_Fields] ([ID], [FieldName], [TableID], [DisplayName], [ShowInL
 VALUES 
 	(56, N'ID', 22, N'Organization ID', 1),
     (57, N'OrganizationName', 22, N'Organization', 1),
-    (58, N'Status', 22, N'Status', 1),
+    (58, N'StatusID', 22, N'Status', 1),
     (59, N'Keywords', 22, N'Keywords', 1),
     (60, N'Description', 22, N'Description', 1),
     (61, N'Mission', 22, N'Mission', 1),
@@ -57,14 +64,18 @@ SET IDENTITY_INSERT [dbo].[Log_Fields] OFF
 GO
 
 
-/****** Object:  StoredProcedure [dbo].[CreateOrganization]    Script Date: 24-10-2022 22:33:27 ******/
+/****** Object:  StoredProcedure [dbo].[CreateOrganization]    Script Date: 02-11-2022 13:49:21 ******/
 SET ANSI_NULLS ON
 GO
+
 SET QUOTED_IDENTIFIER ON
 GO
+
+
 -- =============================================
 -- Author:		Ahuva Freeman
 -- Create date: 8/1/22
+-- Modified On: 10/31/22 by Amit Samanta
 -- Description:	Create new Organization
 -- =============================================
 ALTER PROCEDURE [dbo].[CreateOrganization]
@@ -86,7 +97,7 @@ BEGIN
 	DECLARE @temp TABLE(
 		ID INT,
 		IDString NVARCHAR(250),
-		Organization NVARCHAR(MAX),
+		[Name] NVARCHAR(MAX),
 		[State] NVARCHAR(250),
 		Country NVARCHAR(250)
 	);
@@ -94,32 +105,38 @@ BEGIN
 	INSERT INTO Organizations(OrganizationName, StateID, CountryID, CreatedAt, CreatedBy, [Status])
 		OUTPUT INSERTED.ID AS ID
 				, N'{ "ES":1, "FID":56, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.ID AS NVARCHAR(250)) +'" }, ' AS IDString
-				, N'{ "ES":1, "FID":57, "P":"' + @Page + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName , '"','\"'),'''','\''')  + '" }, ' AS Organization
+				, N'{ "ES":1, "FID":57, "P":"' + @Page + '", "NV":"' + REPLACE(REPLACE(INSERTED.OrganizationName , '"','\"'),'''','\''')  + '" }, ' AS [Name]
 				, N'{ "ES":1, "FID":68, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.StateID AS NVARCHAR(250)) + '" }, '  AS [State]
-				, N'{ "ES":1, "FID":69, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(250)) + '" }'  AS Country
+				, N'{ "ES":1, "FID":69, "P":"' + @Page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(250)) + '" }, '  AS Country
 			INTO @temp
 	VALUES (@Name, @StateID, @CountryID, GETDATE(), @userID, 1)
 
-    SET @json = @json + (SELECT t.[State] + t.Country + t.Organization + t.IDString FROM @temp t)
+    SET @json = @json + (SELECT t.[State] + t.Country + t.[Name] + t.IDString FROM @temp t)
+    SET @json = (SELECT CASE WHEN RIGHT(@json, 2)=', ' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
     SET @json = @json + ']'
 
     DECLARE @OrganizationID INT = (SELECT TOP 1 ID FROM @temp)
 
+	-- Save to Log_ProductHistory
     INSERT INTO @AuditLog(EntityID, EntityTypeID, ProductID, UserID, [Page], [JSON])
-    VALUES(@OrganizationID, 13, -1, @userID, @Page, @json)
+    VALUES(@OrganizationID, 13, NULL, @userID, @Page, @json)
 
     EXECUTE InsertLog @audit=@AuditLog, @json=@json
 
+    -- return created organizationid
     SELECT @OrganizationID
 END
 GO
 
 
-/****** Object:  StoredProcedure [dbo].[UpdateOrganizationStatus]    Script Date: 13-10-2022 21:30:05 ******/
+/****** Object:  StoredProcedure [dbo].[UpdateOrganizationStatus]    Script Date: 02-11-2022 13:50:32 ******/
 SET ANSI_NULLS ON
 GO
+
 SET QUOTED_IDENTIFIER ON
 GO
+
+
 
 -- =============================================
 -- Author:		Ahuva Freeman
@@ -153,10 +170,17 @@ BEGIN
 		o.[Status] = @Status,
 		o.PublishedAt = CASE WHEN @IsPublish = 1 THEN @publishedOn ELSE o.PublishedAt END
 	OUTPUT 
-		CASE WHEN DELETED.[Status] != @Status THEN N'{ "ES":3, "FID":58, "P":"' + @page + '", "OV":"' + CAST(DELETED.[Status] AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.[Status] AS NVARCHAR(10))+ '" }, ' ELSE '' END AS [Status]
-	   , CASE 
-            WHEN DELETED.PublishedAt IS NULL THEN N'{ "ES":1, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }'
-            WHEN DELETED.PublishedAt != @publishedOn THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(50)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(50)) + '" }'
+		CASE 
+            WHEN DELETED.[Status] != @Status 
+                THEN N'{ "ES":3, "FID":58, "P":"' + @page + '", "OV":"' + CAST(DELETED.[Status] AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.[Status] AS NVARCHAR(10))+ '" }, ' 
+            ELSE ''
+        END AS [Status]
+	    , CASE 
+            WHEN DELETED.PublishedAt IS NULL 
+                THEN N'{ "ES":1, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(100)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
+            WHEN @IsPublish = 1
+                THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(100)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
+            ELSE ''
         END AS PublishedAt
 	        INTO @temp
 	FROM Organizations o
@@ -171,11 +195,14 @@ END
 GO
 
 
-/****** Object:  StoredProcedure [dbo].[UpdateOrganizationMetadata]    Script Date: 14-10-2022 14:17:23 ******/
+/****** Object:  StoredProcedure [dbo].[UpdateOrganizationMetadata]    Script Date: 02-11-2022 13:52:24 ******/
 SET ANSI_NULLS ON
 GO
+
 SET QUOTED_IDENTIFIER ON
 GO
+
+
 -- =============================================
 -- Author:		Ahuva Freeman
 -- Create date: 6/3/22
@@ -200,7 +227,7 @@ BEGIN
 
     -- Insert statements for procedure here
 	DECLARE @json NVARCHAR(MAX) = N'[',
-		@page NVARCHAR(500) = (SELECT a.Page FROM @audit a)
+		@page NVARCHAR(500) = (SELECT a.[Page] FROM @audit a)
 
 	DECLARE @temp TABLE (
 		[Name] NVARCHAR(MAX),
@@ -266,24 +293,28 @@ BEGIN
 	WHERE o.ID = @ID
 
 	SET @json = @json + (SELECT t.[Name] + t.[Description] + t.[Mission] + t.[Keywords] + t.[ServicesProvided] FROM @temp t)
-	SET @json  = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
+	SET @json = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
 
+	-- insert into Log_ProductHistory
     EXECUTE InsertLog @audit=@audit, @json=@json
 END
 GO
 
 
-/****** Object:  StoredProcedure [dbo].[UpdateOrganizationAddress]    Script Date: 16-10-2022 16:42:09 ******/
+/****** Object:  StoredProcedure [dbo].[UpdateOrganizationAddress]    Script Date: 02-11-2022 13:54:04 ******/
 SET ANSI_NULLS ON
 GO
+
 SET QUOTED_IDENTIFIER ON
 GO
+
+
 -- =============================================
 -- Author:		Ahuva Freeman
 -- Create date: 6/3/22
 -- Description:	Update Organization Address data
--- Modified On: 10/11/22 by Amit Samanta
+-- Modified On: 11/1/22 by Amit Samanta
 -- =============================================
 ALTER PROCEDURE [dbo].[UpdateOrganizationAddress]
 	-- Add the parameters for the stored procedure here
@@ -369,9 +400,9 @@ BEGIN
         END AS StateID
 		, CASE 
             WHEN DELETED.CountryID IS NULL AND INSERTED.CountryID IS NOT NULL
-                THEN N'{ "ES":3, "FID":69, "P":"' + @page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(10)) + '" }, '
+                THEN N'{ "ES":1, "FID":69, "P":"' + @page + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(10)) + '" }, '
             WHEN DELETED.CountryID IS NOT NULL AND INSERTED.CountryID IS NULL
-                THEN N'{ "ES":3, "FID":69, "P":"' + @page + '", "OV":"' + CAST(DELETED.CountryID AS NVARCHAR(10)) + '" }, '
+                THEN N'{ "ES":2, "FID":69, "P":"' + @page + '", "OV":"' + CAST(DELETED.CountryID AS NVARCHAR(10)) + '" }, '
             WHEN ISNULL(DELETED.CountryID, '') != ISNULL(INSERTED.CountryID, '')
                 THEN N'{ "ES":3, "FID":69, "P":"' + @page + '", "OV":"' + CAST(DELETED.CountryID AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.CountryID AS NVARCHAR(10)) + '" }, '
             ELSE ''
@@ -434,20 +465,25 @@ BEGIN
 	FROM Organizations o
 	INNER JOIN @address a ON o.ID = a.ID
 
-	SET @json = @json + (SELECT t.[Address1] + t.[Address1] + t.[City] + t.[StateID] + t.[CountryID]+ t.[Zip]+ t.[Phone]+ t.[TollFree]+ t.[Email]+ t.[URL]+ t.[SocialMedia] FROM @temp t)
-	SET @json  = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
+	SET @json = @json + (SELECT t.[Address1] + t.[Address2] + t.[City] + t.[StateID] + t.[CountryID] + t.[Zip] + t.[Phone] + t.[TollFree] + t.[Email] + t.[URL] + t.[SocialMedia] FROM @temp t)
+	SET @json = (SELECT CASE WHEN RIGHT(@json, 2) = ',' THEN STUFF(@json, LEN(@json), 2, '') ELSE @json END)
 	SET @json = @json + ']'
 
+	-- insert into Log_ProductHistory
     EXECUTE InsertLog @audit=@audit, @json=@json
+
 END
 GO
 
 
-/****** Object:  StoredProcedure [dbo].[UpdateOrganizationRestrictions]    Script Date: 17-10-2022 15:33:33 ******/
+/****** Object:  StoredProcedure [dbo].[UpdateOrganizationRestrictions]    Script Date: 02-11-2022 13:56:29 ******/
 SET ANSI_NULLS ON
 GO
+
 SET QUOTED_IDENTIFIER ON
 GO
+
+
 -- =============================================
 -- Author:		Ahuva Freeman
 -- Create date: 6/16/22
@@ -465,60 +501,15 @@ BEGIN
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
 
-    DECLARE @PreviousLocationsCount INT
-        , @CurrentLocationsCount INT
-        , @EntryState INT
+    DECLARE @EntityId bigint = (SELECT a.EntityID FROM @audit a)
+        , @EntityTypeId int = (SELECT a.EntityTypeID FROM @audit a)
+        , @UserId int = (SELECT a.UserID FROM @audit a)
+        , @Page nvarchar(1000) = (SELECT a.[Page] FROM @audit a)
         , @FieldID INT
-        , @RemovedIDStrings NVARCHAR(MAX)
-        , @InsertedIDStrings NVARCHAR(MAX)
-        , @JSONString NVARCHAR(MAX)
-        , @Page nvarchar(1000) = (SELECT a.Page FROM @audit a)
+        , @LogTable AuditLog
 
-    DECLARE @deletedID TABLE (ID INT)
-    DECLARE @insertedID TABLE (ID INT)
-
-    -- RestrictedLocations count before operation
-    SET @PreviousLocationsCount = 
-    (
-        SELECT COUNT(ID) 
-        FROM RestrictedLocations 
-        WHERE OrganizationID=@OrganizationID
-            AND RestrictedLocationType=@LocationTypeID
-    )
-
-    DELETE r
-        OUTPUT DELETED.RestrictedLocationID INTO @deletedID 
-    FROM RestrictedLocations r (NOLOCK)
-        INNER JOIN @locations l ON l.ID = r.RestrictedLocationID
-    WHERE r.OrganizationID = @OrganizationID
-        AND r.RestrictedLocationType = @LocationTypeID
-
-    INSERT INTO RestrictedLocations(OrganizationID, RestrictedLocationID, RestrictedLocationType)
-        OUTPUT INSERTED.RestrictedLocationID INTO @insertedID
-    SELECT @OrganizationID, l.ID, @LocationTypeID
-    FROM @locations l
-    WHERE l.ID NOT IN (SELECT ID FROM @deletedID)
-
-    -- RestrictedLocations count after operation
-    SET @CurrentLocationsCount =
-    (
-        SELECT COUNT(ID) 
-        FROM RestrictedLocations 
-        WHERE OrganizationID=@OrganizationID
-            AND RestrictedLocationType=@LocationTypeID
-    )
-
-    SET @EntryState = 
-    CASE 
-        --Restricted Locations are added
-        WHEN @PreviousLocationsCount IS NULL AND @CurrentLocationsCount IS NOT NULL 
-            THEN 1
-        --Restricted Locations are removed
-        WHEN @PreviousLocationsCount IS NOT NULL AND @CurrentLocationsCount IS NULL 
-            THEN 2
-        --Restricted Locations are modified
-        ELSE 3
-    END
+    DECLARE @deletedIDs TABLE (ID INT)
+    DECLARE @insertedIDs TABLE (ID INT)
 
     -- column id from 'Log_Fields'
     SET @FieldID =
@@ -527,52 +518,46 @@ BEGIN
         WHEN @LocationTypeID=2 THEN 64
     END
 
-    -- convert the removed ids to comma separated ids
-    SET @RemovedIDStrings = 
-    (
-        SELECT STUFF(
-            (
-                SELECT DISTINCT ',' + CAST(ID AS NVARCHAR(MAX))
-                FROM @deletedID
-                FOR XML PATH('')
-            ),
-            1,
-            1,
-            ''
-        )
-    )
+    DELETE r
+        OUTPUT DELETED.RestrictedLocationID INTO @deletedIDs
+    FROM RestrictedLocations r (NOLOCK)
+        INNER JOIN @locations l ON l.ID = r.RestrictedLocationID
+    WHERE r.OrganizationID = @OrganizationID
+        AND r.RestrictedLocationType = @LocationTypeID
 
-    -- convert the inserted ids to comma separated ids
-    SET @InsertedIDStrings = 
-    (
-        SELECT STUFF(
-            (
-                SELECT DISTINCT ',' + CAST(ID AS NVARCHAR(MAX))
-                FROM @insertedID
-                FOR XML PATH('')
-            ),
-            1,
-            1,
-            ''
-        )
-    )
+    INSERT INTO @LogTable (EntityID, EntityTypeID, UserID, ProductID, [Page], [Json])
+    SELECT @EntityId, @EntityTypeId, @UserId, NULL, @Page, N'[{"ES":2, "FID":' + CAST(@FieldID AS NVARCHAR(250)) + ', "P":"' + @Page + '", "OV":"' + CAST(ID AS NVARCHAR(250)) + '"}]'
+    FROM @deletedIDs
 
-    SET @JSONString = N'[{ "ES":' + CAST(@EntryState AS NVARCHAR(250)) + ', "FID":' + CAST(@FieldID AS NVARCHAR(250))
-    SET @JSONString = @JSONString + ', "P":"' + @Page + ISNULL('", "OV":"' + @RemovedIDStrings, '')
-    SET @JSONString = @JSONString + ISNULL('", "NV":"' + @InsertedIDStrings, '') + '" }]'
+    INSERT INTO RestrictedLocations(OrganizationID, RestrictedLocationID, RestrictedLocationType)
+        OUTPUT INSERTED.RestrictedLocationID INTO @insertedIDs
+    SELECT @OrganizationID, l.ID, @LocationTypeID
+    FROM @locations l
+    WHERE l.ID NOT IN (SELECT ID FROM @deletedIDs)
 
-    EXECUTE InsertLog @audit=@audit, @json=@json
+    INSERT INTO @LogTable (EntityID, EntityTypeID, UserID, ProductID, [Page], [Json])
+    SELECT @EntityId, @EntityTypeId, @UserId, NULL, @Page, N'[{"ES":1, "FID":' + CAST(@FieldID AS NVARCHAR(250)) + ', "P":"' + @Page + '", "NV":"' + CAST(ID AS NVARCHAR(250)) + '"}]'
+    FROM @insertedIDs
+
+    -- insert into Log_ProductHistory
+    EXECUTE InsertLog_Bulk @audit=@LogTable
+	
 END
 GO
 
-/****** Object:  StoredProcedure [dbo].[DeleteOrganization]    Script Date: 16-10-2022 18:50:57 ******/
+
+/****** Object:  StoredProcedure [dbo].[DeleteOrganization]    Script Date: 02-11-2022 13:57:34 ******/
 SET ANSI_NULLS ON
 GO
+
 SET QUOTED_IDENTIFIER ON
 GO
+
+
 -- =============================================
 -- Author:		Ahuva Freeman
 -- Create date: 8/2/2022
+-- Modified On: 10/31/22 by Amit Samanta
 -- Description:	Delete Organization
 -- =============================================
 ALTER PROCEDURE [dbo].[DeleteOrganization]
@@ -601,10 +586,11 @@ BEGIN
 	FROM Organizations o
 	WHERE o.ID = @ID
 
+    -- Save Audit Log Entry
 	SET @json = (SELECT t.OldVal FROM @temp t)
 
     INSERT INTO @AuditLog(EntityID, EntityTypeID, ProductID, UserID, [Page], [JSON])
-    VALUES(@ID, 13, -1, @UserID, @Page, @json)
+    VALUES(@ID, 13, NULL, @UserID, @Page, @json)
 
     EXECUTE InsertLog @audit=@AuditLog, @json=@json
 END
