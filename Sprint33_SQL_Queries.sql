@@ -177,8 +177,8 @@ BEGIN
         END AS [Status]
 	    , CASE 
             WHEN DELETED.PublishedAt IS NULL 
-                THEN N'{ "ES":1, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(100)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
-            WHEN @IsPublish = 1
+                THEN N'{ "ES":1, "FID":76, "P":"' + @page + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
+            WHEN @IsPublish = 1 -- PublishedAt value is modified
                 THEN N'{ "ES":3, "FID":76, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(100)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
             ELSE ''
         END AS PublishedAt
