@@ -19,18 +19,19 @@ SET IDENTITY_INSERT [dbo].[Log_Fields] ON
 
 INSERT [dbo].[Log_Fields] ([ID], [FieldName], [TableID], [DisplayName], [ShowInLog])
 VALUES 
-    (82, N'ID', 23, N'Edition ID', 1)
-    (83, N'Title', 23, N'Title', 1)
-    (84, N'APATitle', 23, N'APA Title', 1)
-    (85, N'ShortName', 23, N'Short Name', 1)
-    (86, N'PublicationYear', 23, N'Publication Year', 1)
-    (87, N'Status', 23, N'Status', 1)
-    (88, N'PublisherID', 23, N'Publisher', 1)
-    (89, N'PublisherImprintID', 23, N'Royalty Publisher', 1)
-    (90, N'DataValue', 23, N'Data Value', 1),
-    (91, N'Copyright', 23, N'Copyright Statement', 1),
-    (92, N'ISBN', 23, N'ISBN', 1),
-    (93, N'Edition', 23, N'Edition Statement', 1)
+    (77, N'ID', 23, N'Edition ID', 1),
+    (78, N'Title', 23, N'Title', 1),
+    (79, N'APATitle', 23, N'APA Title', 1),
+    (80, N'ShortName', 23, N'Short Name', 1),
+    (81, N'PublicationYear', 23, N'Publication Year', 1),
+    (82, N'StatusID', 23, N'Status', 1),
+    (83, N'PublisherID', 23, N'Publisher', 1),
+    (84, N'PublisherImprintID', 23, N'Royalty Publisher', 1),
+    (85, N'DataValue', 23, N'DataValue', 1),
+	(86, N'EditionDataValue', 23, N'EditionDataValue', 1),
+    (87, N'Copyright', 23, N'Copyright Statement', 1),
+    (88, N'ISBN', 23, N'ISBN', 1),
+    (89, N'Edition', 23, N'Edition Statement', 1)
 
 SET IDENTITY_INSERT [dbo].[Log_Fields] OFF
 GO
@@ -152,7 +153,7 @@ BEGIN
 	SET @json = (SELECT CASE WHEN RIGHT(@json, 1) = ',' THEN STUFF(@json, LEN(@json), 1, '') ELSE @json END)
 	SET @json = @json + ']'
 	
-	DECLARE @EditionID = (SELECT TOP 1 ID FROM @temp)
+	DECLARE @EditionID INT = (SELECT TOP 1 ID FROM @temp)
 	
 	-- Save to Log_ProductHistory
     INSERT INTO @AuditLog(EntityID, EntityTypeID, ProductID, UserID, [Page], [JSON])
@@ -196,7 +197,7 @@ BEGIN
 	IF @remove = 1
 	BEGIN
 		DELETE pd
-        OUTPUT N'[{"ES":2, "FID":90, "PID":' + CONVERT(NVARCHAR(25), @propertyID) + ', "P":"' + @page + '", "OV":"' + 
+        OUTPUT N'[{"ES":2, "FID":91, "PID":' + CONVERT(NVARCHAR(25), @propertyID) + ', "P":"' + @page + '", "OV":"' + 
 	        REPLACE(REPLACE(CAST(DELETED.DataValue AS NVARCHAR(MAX)), '"', '\"'), '''', '\''') + '"}]'
 	        INTO @temp
 		FROM WorkEditionPropertyData pd
@@ -259,15 +260,15 @@ ALTER PROCEDURE [dbo].[UpdateEditionDetails]
 	@PubYear int,
 	@Statement int,
 	@userID int,
-    @page nvarchar(500)
-	
+	@audit AuditLog READONLY
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
 
-    DECLARE @json NVARCHAR(MAX) = N'['
+    DECLARE @json NVARCHAR(MAX) = N'[',
+		@page NVARCHAR(500) = (SELECT [Page] FROM @audit)
 
     DECLARE @TempTable1 TABLE (
 		[Title] NVARCHAR(MAX),
