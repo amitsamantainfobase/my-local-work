@@ -38,7 +38,8 @@ VALUES
 	(90, N'PersonID', 26, N'Authors/Editors', 1),
 	(91, N'PersonID', 26, N'Assigned To', 1),
 	(92, N'UserID', 26, N'Assigned By', 1),
-	(93, N'CategoryID', 21, N'Subject', 1)
+	(93, N'CategoryID', 21, N'Subject', 1),
+	(94, N'PublishedAt', 23, N'Published Date', 1)
 
 SET IDENTITY_INSERT [dbo].[Log_Fields] OFF
 GO
@@ -595,4 +596,111 @@ BEGIN
 	--return new Edition ID
 	SELECT @newID
 
+END
+
+/****** Object:  StoredProcedure [dbo].[UpdateEditionPersons]    Script Date: 21-11-2022 18:12:33 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+-- =============================================
+-- Author:		Ahuva Freeman
+-- Create date: 4/1/22
+-- Modifed on: 05/10/22
+-- Description:	Update Edition authors/editors
+-- =============================================
+ALTER PROCEDURE [dbo].[UpdateEditionPersons]
+	-- Add the parameters for the stored procedure here
+	@ID int,
+	@Persons EntityPerson READONLY,
+	@userID int
+	AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+	DECLARE @date DATETIME2(0) = GETDATE(),
+		@JSONString NVARCHAR(MAX) = N'[',
+		@TempPersonTableVar TABLE(OldValue NVARCHAR(1000))
+	
+	--delete from table where person/role is not in the Persons param
+    DELETE ep
+	OUTPUT N'{ "ES":2, "FID":90, "P":"' + @page + '", "OV":"' + CAST(DELETED.PersonID as nvarchar(250)) + ',' + CAST(DELETED.PersonRoleID as nvarchar(250)) + '" }' AS OldValue
+       INTO @TempPersonTableVar
+	FROM WorkEditionPersons ep (NOLOCK)
+	WHERE ep.WorkEditionID = @ID
+		AND NOT EXISTS (SELECT 1 FROM @Persons p 
+			WHERE p.PersonID = ep.PersonID and p.PersonRoleID = ep.PersonRoleID)
+
+
+	--update sort order for person/role already in table but may have new Order
+	UPDATE ep
+	SET ep.[Order] = p.[Order]
+	FROM WorkEditionPersons ep
+	INNER JOIN @Persons p ON p.PersonRoleID = ep.PersonRoleID
+		AND p.PersonID = ep.PersonID
+	WHERE ep.WorkEditionID = @ID 
+
+
+	--insert new person/role where does not yet exist in table
+	INSERT INTO WorkEditionPersons(WorkEditionID,PersonID,PersonRoleID,CreatedByID,CreatedAt,IsDeleted,[Order])
+	OUTPUT N'{ "ES":1, "FID":90, "P":"' + @page + '", "NV":"' + CAST(INSERTED.PersonID as nvarchar(250)) + ',' + CAST(INSERTED.PersonRoleID as nvarchar(250)) + '" }' AS OldValue
+       INTO @TempPersonTableVar
+	SELECT @ID, p.PersonID, p.PersonRoleID, @userID, @date, 0, p.[Order]
+	FROM @Persons p
+	WHERE NOT EXISTS (select 1 from WorkEditionPersons ep (NOLOCK)
+		WHERE ep.PersonID = p.PersonID and ep.PersonRoleID = p.PersonRoleID and ep.WorkEditionID = @ID)
+
+	
+END
+
+
+/****** Object:  StoredProcedure [dbo].[UpdateEditionStatus]    Script Date: 21-11-2022 19:19:22 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		Ahuva Freeman
+-- Create date: 5/20/22
+-- Description:	Update Edition Status
+-- =============================================
+ALTER PROCEDURE [dbo].[UpdateEditionStatus] 
+	-- Add the parameters for the stored procedure here
+	@EditionID int,
+	@Status int,
+	@IsPublish bit
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    -- Insert statements for procedure here
+	DECLARE @TempTableVar TABLE ([Status] nvarchar(1000), PublishedAt nvarchar(2500))
+		, @JSONString nvarchar(MAX) = N'['
+
+	UPDATE we
+	OUTPUT
+		CASE
+			WHEN DELETED.[Status] != @Status
+				THEN N'{ "ES":3, "FID":82, "P":"' + @page + '", "OV":"' + CAST(DELETED.[Status] AS NVARCHAR(10)) + '", "NV":"' + CAST(INSERTED.[Status] AS NVARCHAR(10))+ '" }, '
+			ELSE ''
+		END AS [Status]
+		, CASE
+			WHEN DELETED.PublishedAt IS NULL 
+                THEN N'{ "ES":1, "FID":94, "P":"' + @page + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
+            WHEN @IsPublish = 1 -- PublishedAt value is modified
+                THEN N'{ "ES":3, "FID":94, "P":"' + @page + '", "OV":"' + CAST(DELETED.PublishedAt AS NVARCHAR(100)) + '", "NV":"' + CAST(INSERTED.PublishedAt AS NVARCHAR(100)) + '" }, '
+            ELSE ''
+        END AS PublishedAt
+			INTO @TempTableVar
+	SET 
+		we.[Status] = @Status,
+		we.PublishedAt = CASE WHEN @IsPublish = 1 THEN getdate() ELSE we.PublishedAt END
+	FROM WorkEdition we
+	WHERE we.ID = @EditionID
 END
