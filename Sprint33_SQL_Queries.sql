@@ -393,7 +393,7 @@ GO
 -- Create date: 3/14/22
 -- Description: Create an update (copy) of an edition
 -- =============================================
-ALTER PROCEDURE [dbo].[CreateEditionUpdate1]
+ALTER PROCEDURE [dbo].[CreateEditionUpdate]
 	-- Add the parameters for the stored procedure here
 	@PreviousEditionID int,
 	@shortName nvarchar(256),
@@ -495,7 +495,7 @@ BEGIN
 
 	--copy property data
 	INSERT INTO WorkEditionPropertyData(WorkEditionID, WorkEditionPropertyTypeID, DataValue)
-    OUTPUT N'{ "ES":1, "FID":87, "PID":' + CONVERT(NVARCHAR(25), INSERTED.WorkEditionPropertyTypeID)
+    OUTPUT N'{ "ES":1, "FID":88, "PID":' + CONVERT(NVARCHAR(25), INSERTED.WorkEditionPropertyTypeID)
             + ', "P":"' + @page + '", "NV":"'
             + REPLACE(REPLACE(CAST(INSERTED.DataValue AS NVARCHAR(MAX)), '"', '\"'), '''', '\''')
             + '"}'
@@ -506,7 +506,7 @@ BEGIN
 
 	--copy isbn
 	INSERT INTO WorkEditionISBN(WorkEditionID, ISBN)
-    OUTPUT N'{ "ES":1, "FID":88, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.ISBN, '"', '\"'), '''', '\''') + '" },'  AS [ISBN]
+    OUTPUT N'{ "ES":1, "FID":89, "P":"' + @page + '", "NV":"' + REPLACE(REPLACE(INSERTED.ISBN, '"', '\"'), '''', '\''') + '" },'  AS [ISBN]
         INTO @EditionISBNVar
 	SELECT @newID, i.ISBN
 	FROM WorkEditionISBN i (NOLOCK)
@@ -546,7 +546,7 @@ BEGIN
 	DECLARE @contentType int = (SELECT c.ID FROM M_ContentTypes c WHERE c.[Name] = 'WorkEdition')
 
 	INSERT INTO ContentCategory(CategoryID,ContentID,CreatedBy,CreatedAt,ContentType,IsDeleted)
-    OUTPUT N'{ "ES":1, "FID":92, "P":"' + @page + '", "NV":"' + CAST(INSERTED.CategoryID as nvarchar(250)) + '" }'
+    OUTPUT N'{ "ES":1, "FID":93, "P":"' + @page + '", "NV":"' + CAST(INSERTED.CategoryID as nvarchar(250)) + '" }'
         INTO @ContentCategoryVar
 	SELECT c.CategoryID, @newID, @userID, @CurrentDate, @contentType, c.IsDeleted
 	FROM ContentCategory c (NOLOCK)
@@ -556,7 +556,7 @@ BEGIN
     DECLARE @EditorsORAuthors nvarchar(MAX) = (SELECT STUFF((SELECT ', ' + OldValue FROM @EditionPersonVar FOR XML PATH('')), 1, 2, ''))
     DECLARE @EditionSubjects nvarchar(MAX) = (SELECT STUFF((SELECT ', ' + OldValue FROM @ContentCategoryVar FOR XML PATH('')), 1, 2, ''))
 
-    SET @JSONString = @JSONString + (SELECT t.[Status] + t.PreviousEdition + t.EditionNum + t.Copyright + t.PublisherImprint + t.Publisher + t.PubYear + t.ShortName + t.APATitle + t.Title + t.IDString FROM @EditionTableVar t)
+    SET @JSONString = @JSONString + (SELECT t.[Status] + t.PreviousEdition + t.EditionNum + ISNULL(t.Copyright, '') + ISNULL(t.PublisherImprint, '') + ISNULL(t.Publisher, '') + t.PubYear + ISNULL(t.ShortName) + ISNULL(t.APATitle, '') + t.Title + t.IDString FROM @EditionTableVar t)
     SET @JSONString = @JSONString + (SELECT STUFF((SELECT ', ' + OldValue FROM @EditionPropertyDataVar FOR XML PATH('')), 1, 2, '')) + ','
     SET @JSONString = @JSONString + (SELECT t.OldValue FROM @EditionISBNVar t)
     
@@ -573,6 +573,7 @@ BEGIN
     SET @JSONString = (SELECT CASE WHEN RIGHT(@JSONString, 1) = ',' THEN STUFF(@JSONString, LEN(@JSONString), 1, '') ELSE @JSONString END)
     SET @JSONString = @JSONString + ']'
 
+    select @JSONString
 	DECLARE @NewJSONString NVARCHAR(1000) = (SELECT t.OldValue FROM @OldEditionTableVar t)
 
 	-- Save to Log_ProductHistory
@@ -581,12 +582,12 @@ BEGIN
 		(@PreviousEditionID, 10, 188, @userID, @page, @NewJSONString)
 
 	EXECUTE InsertLog @audit=@AuditLogVar, @json=@JSONString
-
+    
     IF @assignedTo IS NOT NULL AND @assignedTo <> 0
 	BEGIN
 		INSERT INTO @AuditLogVar(EntityID, EntityTypeID, ProductID, UserID, [Page], [JSON])
-		VALUES (@newID, 10, 188, @userID, @page, '{ "ES":1, "FID":91, "P":"' + @page + '", "NV":"' + CAST(@assignedTo as nvarchar(250)) + '" }')
-			(@newID, 10, 188, @userID, @page, '{ "ES":1, "FID":92, "P":"' + @page + '", "NV":"' + CAST(@userID as nvarchar(250)) + '" }')
+		VALUES (@newID, 10, 188, @userID, @page, '{ "ES":1, "FID":92, "P":"' + @page + '", "NV":"' + CAST(@userID as nvarchar(250)) + '" }'),
+			(@newID, 10, 188, @userID, @page, '{ "ES":1, "FID":91, "P":"' + @page + '", "NV":"' + CAST(@assignedTo as nvarchar(250)) + '" }')
 
 		EXECUTE InsertLog @audit=@AuditLogVar, @json=@JSONString
 	END
